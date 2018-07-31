@@ -3,6 +3,8 @@ Smopy
 
 **New: you may be interested in [Folium](https://github.com/wrobstory/folium) for interactive maps with Leaflet.js**
 
+**Note: This is a version of smopy that is supposed to handle very large images. Therefore the tiles are not put together in a single image but are kept seperately to avoid Pillow bug ![#1475](https://github.com/python-pillow/Pillow/issues/1475). Thus, the matplotlib and ipython functionality was cut from this version.**
+
 Give a box in geographical coordinates (latitude/longitude) and a zoom level, Smopy returns an OpenStreetMap tile image!
 
 ```python
@@ -31,13 +33,11 @@ Smopy currently requires:
 
 * Pillow
 * NumPy
-* matplotlib
-* IPython
 
 To install, `pip install smopy` or:
 
 ```python
-git clone git@github.com:rossant/smopy.git
+git clone git@github.com:SteiMi/smopy.git
 cd smopy
 python setup.py develop
 ```

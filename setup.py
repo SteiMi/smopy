@@ -23,5 +23,5 @@ setup(
         "Framework :: IPython",
         "License :: OSI Approved :: BSD License",
     ],
-    install_requires=['numpy', 'ipython', 'pillow', 'six', 'matplotlib'],
+    install_requires=['numpy', 'pillow', 'six'],
 )

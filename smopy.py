@@ -11,6 +11,8 @@ from __future__ import print_function
 
 from six import BytesIO
 from six.moves.urllib.request import urlopen
+from six.moves.urllib.error import HTTPError, URLError, ContentTooShortError
+import time
 
 from PIL import Image
 import numpy as np
@@ -22,6 +24,8 @@ from IPython.display import display_png
 # Constants
 # -----------------------------------------------------------------------------
 __version__ = '0.0.6'
+
+TILE_SIZE = 256
 
 # -----------------------------------------------------------------------------
 # OSM functions
@@ -37,8 +41,21 @@ def fetch_tile(x, y, z, tileserver):
     Return a PIL image.
 
     """
+    
     url = get_url(x, y, z, tileserver)
-    png = BytesIO(urlopen(url).read())
+
+    # Retry loop
+    while True:
+        try:
+            png = BytesIO(urlopen(url).read())
+        except (HTTPError, URLError, ContentTooShortError) as err:
+            print(err)
+            print('Retrying in a minute...')
+            time.sleep(60)
+            print('Retrying...')
+            continue
+        break
+
     img = Image.open(png)
     img.load()
     return img
@@ -54,11 +71,13 @@ def fetch_map(box, z, tileserver, tilesize, maxtiles):
         raise Exception(("You are requesting a very large map, beware of "
                          "OpenStreetMap tile usage policy "
                          "(http://wiki.openstreetmap.org/wiki/Tile_usage_policy)."))
-    img = Image.new('RGB', (sx*tilesize, sy*tilesize))
+    #img = Image.new('RGB', (sx*tilesize, sy*tilesize))
+    img = {}
     for x in range(x0, x1 + 1):
         for y in range(y0, y1 + 1):
             px, py = tilesize * (x - x0), tilesize * (y - y0)
-            img.paste(fetch_tile(x, y, z, tileserver), (px, py))
+            # img.paste(fetch_tile(x, y, z, tileserver), (px, py))
+            img[(x, y, z)] = fetch_tile(x, y , z, tileserver)
     return img
 
 
@@ -304,22 +323,19 @@ class Map(object):
 
     def to_pixels(self, lat, lon=None):
         """Convert from geographical coordinates to pixels in the image."""
-        return_2D = False
         if lon is None:
             if isinstance(lat, np.ndarray):
                 assert lat.ndim == 2
                 assert lat.shape[1] == 2
                 lat, lon = lat.T
-                return_2D = True
             else:
                 lat, lon = lat
         x, y = get_tile_coords(lat, lon, self.z)
-        px = (x - self.xmin) * TILE_SIZE
-        py = (y - self.ymin) * TILE_SIZE
-        if return_2D:
-            return np.c_[px, py]
-        else:
-            return px, py
+
+        px = (x - int(x)) * TILE_SIZE
+        py = (y - int(y)) * TILE_SIZE
+
+        return ((int(x), int(y), self.z), (px, py))
 
     def get_allowed_zoom(self, z=18):
         box_tile = get_tile_box(self.box, z)
@@ -333,42 +349,7 @@ class Map(object):
         """Fetch the image from OSM's servers."""
         if self.img is None:
             self.img = fetch_map(self.box_tile, self.z, self.tileserver, self.tilesize, self.maxtiles)
-        self.w, self.h = self.img.size
         return self.img
-
-    def show_mpl(self, ax=None, figsize=None, dpi=None, **imshow_kwargs):
-        """Show the image in matplotlib.
-
-        Parameters
-        ----------
-        ax : matplotlib axes, optional
-            Matplotlib axes used to show the image.  If `None`, a
-            a new figure is created.  Default is `None`.
-        figsize, dpi : optional
-            These arguments are passed as arguments for the created
-            figure if `ax` is `None`.  Default is `None` for both
-            parameters.
-        **imshow_kwargs : optional
-            All remaining keyword arguments are passed to matplotlib
-            imshow.
-        """
-        if not ax:
-            plt.figure(figsize=figsize, dpi=dpi)
-            ax = plt.subplot(111)
-            plt.xticks([])
-            plt.yticks([])
-            plt.grid(False)
-            plt.xlim(0, self.w)
-            plt.ylim(self.h, 0)
-            plt.axis('off')
-            plt.tight_layout()
-        ax.imshow(self.img, **imshow_kwargs)
-        return ax
-
-    def show_ipython(self):
-        """Show the image in IPython as a PNG image."""
-        png = image_to_png(self.img)
-        display_png(png, raw=True)
 
     def to_pil(self):
         """Return the PIL image."""
